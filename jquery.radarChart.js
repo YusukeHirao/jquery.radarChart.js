@@ -2,7 +2,7 @@
 /*
 * jquery.radarChart.js
 * Author: Yusuke Hirao [http://www.yusukehirao.com]
-* Version: 0.1.1.0
+* Version: 0.1.2.0
 * Github: https://github.com/YusukeHirao/jquery.radarChart.js
 * Licensed under the MIT License
 * Require: jQuery v@1.9.1
@@ -171,6 +171,7 @@
       font: 'bold 13px Arial',
       offsetX: 0,
       offsetY: 0,
+      scale: 1,
       data: function() {
         var text;
 
@@ -182,32 +183,41 @@
       o.gridBorderColor = o.gridLineColor;
     }
     return this.each(function() {
-      var $this, apex, cX, cY, ctx, data, dataLength, divisions, fontOffsetX, fontOffsetY, grid, i, pentagon, point, radius, value, _i, _len, _results;
+      var $this, apex, cX, cY, ctx, data, dataLength, divisions, font, fontOffsetX, fontOffsetY, grid, gridBorderWidth, gridLineWidth, i, offsetX, offsetY, pentagon, plotLineWidth, point, radius, scale, value, _i, _len;
 
       if (this.nodeName.toLowerCase() !== 'canvas') {
         return;
       }
       $this = $(this);
-      radius = o.radius || $this.width() / 2;
+      scale = o.scale;
+      radius = o.radius * scale || $this.width() / 2 * scale;
+      plotLineWidth = o.plotLineWidth * scale;
+      gridLineWidth = o.gridLineWidth * scale;
+      gridBorderWidth = o.gridBorderWidth * scale;
+      font = (o.font || '').replace(/\d+/i, function(d) {
+        return d * scale;
+      });
+      offsetX = o.offsetX * scale;
+      offsetY = o.offsetY * scale;
       data = o.data.call(this);
       dataLength = data.length;
       if (dataLength < 3) {
         return;
       }
       ctx = this.getContext('2d');
-      cX = radius + o.offsetX;
-      cY = radius + o.offsetY;
+      cX = radius + offsetX;
+      cY = radius + offsetY;
       divisions = radius / o.gridLength;
       i = o.gridLength;
-      ctx.font = o.font;
+      ctx.font = font;
       while (i) {
         grid = new Polygon(ctx, dataLength, divisions * i, cX, cY);
         if (i === o.gridLength) {
-          grid.stroke(o.gridBorderColor, o.gridBorderWidth).fill(o.gridBGColor).peint();
-          grid.stroke(o.gridLineColor, o.gridLineWidth / 2).radiate();
+          grid.stroke(o.gridBorderColor, gridBorderWidth).fill(o.gridBGColor).peint();
+          grid.stroke(o.gridLineColor, gridLineWidth / 2).radiate();
         } else {
           if (!(i % o.gridDivisionStep)) {
-            grid.stroke(o.gridLineColor, o.gridLineWidth).peint();
+            grid.stroke(o.gridLineColor, gridLineWidth).peint();
           }
         }
         i -= 1;
@@ -225,7 +235,7 @@
           ctx.lineTo(apex[0], apex[1]);
         }
       }
-      ctx.lineWidth = o.plotLineWidth;
+      ctx.lineWidth = plotLineWidth;
       ctx.strokeStyle = o.plotLineColor;
       ctx.fillStyle = o.plotBGColor;
       ctx.closePath();
@@ -234,14 +244,12 @@
       i = o.gridLength + 1;
       fontOffsetX = -11;
       fontOffsetY = 8;
-      _results = [];
       while (i) {
         i -= 1;
         ctx.fillStyle = o.fontColor;
         ctx.strokeStyle = o.gridBGColor;
-        _results.push(ctx.fillText("" + i, cX + fontOffsetX, cY - divisions * i + fontOffsetY));
+        ctx.fillText("" + i, cX + fontOffsetX, cY - divisions * i + fontOffsetY);
       }
-      return _results;
     });
   };
 

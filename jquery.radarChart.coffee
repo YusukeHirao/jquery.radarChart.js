@@ -1,7 +1,7 @@
 ###
 * jquery.radarChart.js
 * Author: Yusuke Hirao [http://www.yusukehirao.com]
-* Version: 0.1.1.0
+* Version: 0.1.2.0
 * Github: https://github.com/YusukeHirao/jquery.radarChart.js
 * Licensed under the MIT License
 * Require: jQuery v@1.9.1
@@ -126,6 +126,7 @@ $.fn.radarChart = (option) ->
 		font: 'bold 13px Arial'
 		offsetX: 0
 		offsetY: 0
+		scale: 1
 		# データを取得する関数のデフォルト
 		data: ->
 			# Canvasのdata-values属性をカンマ区切りの数値として取得
@@ -141,8 +142,15 @@ $.fn.radarChart = (option) ->
 			return
 		$this = $ @
 
-		# チャートの半径
-		radius = o.radius or $this.width() / 2
+		# 数値情報
+		scale = o.scale
+		radius = o.radius * scale or $this.width() / 2 * scale
+		plotLineWidth = o.plotLineWidth * scale
+		gridLineWidth = o.gridLineWidth * scale
+		gridBorderWidth = o.gridBorderWidth * scale
+		font = (o.font or '').replace /\d+/i, (d) -> d * scale
+		offsetX = o.offsetX * scale
+		offsetY = o.offsetY * scale
 
 		# データの取得
 		data = o.data.call @
@@ -157,26 +165,26 @@ $.fn.radarChart = (option) ->
 		ctx = @getContext '2d'
 
 		# 中心の座標
-		cX = radius + o.offsetX
-		cY = radius + o.offsetY
+		cX = radius + offsetX
+		cY = radius + offsetY
 
 		# 目盛の高さ
 		divisions = radius / o.gridLength
 
 		# グリッドの生成
 		i = o.gridLength
-		ctx.font = o.font
+		ctx.font = font
 		while i
 			grid = new Polygon ctx, dataLength, divisions * i, cX, cY
 			if i is o.gridLength
 				# 外枠の線と背景色の描画
-				grid.stroke(o.gridBorderColor, o.gridBorderWidth).fill(o.gridBGColor).peint()
+				grid.stroke(o.gridBorderColor, gridBorderWidth).fill(o.gridBGColor).peint()
 				# 放射状線の描画
-				grid.stroke(o.gridLineColor, o.gridLineWidth / 2).radiate()
+				grid.stroke(o.gridLineColor, gridLineWidth / 2).radiate()
 			else
 				if not (i % o.gridDivisionStep)
 					# 目盛線の描画
-					grid.stroke(o.gridLineColor, o.gridLineWidth).peint()
+					grid.stroke(o.gridLineColor, gridLineWidth).peint()
 			i -= 1
 
 		# データをプロット
@@ -190,7 +198,7 @@ $.fn.radarChart = (option) ->
 				ctx.moveTo apex[0], apex[1]
 			else
 				ctx.lineTo apex[0], apex[1]
-		ctx.lineWidth = o.plotLineWidth
+		ctx.lineWidth = plotLineWidth
 		ctx.strokeStyle = o.plotLineColor
 		ctx.fillStyle = o.plotBGColor
 		ctx.closePath()
@@ -206,3 +214,4 @@ $.fn.radarChart = (option) ->
 			ctx.fillStyle = o.fontColor
 			ctx.strokeStyle = o.gridBGColor
 			ctx.fillText "#{i}", cX + fontOffsetX, cY - divisions * i + fontOffsetY
+		return
