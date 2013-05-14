@@ -2,7 +2,7 @@
 /*
 * jquery.radarChart.js
 * Author: Yusuke Hirao [http://www.yusukehirao.com]
-* Version: 0.1.2.0
+* Version: 0.1.3.0
 * Github: https://github.com/YusukeHirao/jquery.radarChart.js
 * Licensed under the MIT License
 * Require: jQuery v@1.9.1
@@ -244,11 +244,13 @@
       i = o.gridLength + 1;
       fontOffsetX = -11;
       fontOffsetY = 8;
+      ctx.fillStyle = o.fontColor;
+      ctx.strokeStyle = o.gridBGColor;
       while (i) {
         i -= 1;
-        ctx.fillStyle = o.fontColor;
-        ctx.strokeStyle = o.gridBGColor;
-        ctx.fillText("" + i, cX + fontOffsetX, cY - divisions * i + fontOffsetY);
+        if (!(i % o.gridDivisionStep)) {
+          ctx.fillText("" + i, cX + fontOffsetX, cY - divisions * i + fontOffsetY);
+        }
       }
     });
   };
