@@ -2,7 +2,7 @@
 /*
 * jquery.radarChart.js
 * Author: Yusuke Hirao [http://www.yusukehirao.com]
-* Version: 0.1.0.0
+* Version: 0.1.1.0
 * Github: https://github.com/YusukeHirao/jquery.radarChart.js
 * Licensed under the MIT License
 * Require: jQuery v@1.9.1
@@ -11,11 +11,22 @@
 
 (function() {
   'use strict';
-  var $, Polygon, w;
+  var $, Polygon, debug, w;
 
   w = this;
 
   $ = w.jQuery;
+
+  debug = function(obj) {
+    var k, res, v;
+
+    res = [];
+    for (k in obj) {
+      v = obj[k];
+      res.push("" + k + ": " + v);
+    }
+    return res.join('\n');
+  };
 
   Polygon = (function() {
     Polygon.prototype.ctx = null;
@@ -161,7 +172,10 @@
       offsetX: 0,
       offsetY: 0,
       data: function() {
-        return $(this).text().split(',');
+        var text;
+
+        text = $(this).data('values') || '';
+        return text.split(',');
       }
     }, option);
     if ((_ref = o.gridBorderColor) == null) {
@@ -170,13 +184,16 @@
     return this.each(function() {
       var $this, apex, cX, cY, ctx, data, dataLength, divisions, fontOffsetX, fontOffsetY, grid, i, pentagon, point, radius, value, _i, _len, _results;
 
-      if (this.nodeName !== 'CANVAS') {
+      if (this.nodeName.toLowerCase() !== 'canvas') {
         return;
       }
       $this = $(this);
       radius = o.radius || $this.width() / 2;
       data = o.data.call(this);
       dataLength = data.length;
+      if (dataLength < 3) {
+        return;
+      }
       ctx = this.getContext('2d');
       cX = radius + o.offsetX;
       cY = radius + o.offsetY;
@@ -222,7 +239,7 @@
         i -= 1;
         ctx.fillStyle = o.fontColor;
         ctx.strokeStyle = o.gridBGColor;
-        _results.push(ctx.fillText(i, cX + fontOffsetX, cY - divisions * i + fontOffsetY));
+        _results.push(ctx.fillText("" + i, cX + fontOffsetX, cY - divisions * i + fontOffsetY));
       }
       return _results;
     });

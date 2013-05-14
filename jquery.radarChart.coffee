@@ -1,7 +1,7 @@
 ###
 * jquery.radarChart.js
 * Author: Yusuke Hirao [http://www.yusukehirao.com]
-* Version: 0.1.0.0
+* Version: 0.1.1.0
 * Github: https://github.com/YusukeHirao/jquery.radarChart.js
 * Licensed under the MIT License
 * Require: jQuery v@1.9.1
@@ -11,6 +11,12 @@
 
 w = @
 $ = w.jQuery
+
+debug = (obj) ->
+	res = []
+	for k, v of obj
+		res.push "#{k}: #{v}"
+	return res.join '\n'
 
 class Polygon
 	ctx: null
@@ -122,15 +128,16 @@ $.fn.radarChart = (option) ->
 		offsetY: 0
 		# データを取得する関数のデフォルト
 		data: ->
-			# Canvas内のテキストをカンマ区切りの数値として取得
-			return $(@).text().split(',')
+			# Canvasのdata-values属性をカンマ区切りの数値として取得
+			text = $(@).data('values') or ''
+			return text.split(',')
 	, option
 
 	# 特に指定しなければ gridLineColor と同じにする
 	o.gridBorderColor ?= o.gridLineColor
 
 	@each ->
-		unless @nodeName is 'CANVAS'
+		unless @nodeName.toLowerCase() is 'canvas'
 			return
 		$this = $ @
 
@@ -140,6 +147,11 @@ $.fn.radarChart = (option) ->
 		# データの取得
 		data = o.data.call @
 		dataLength = data.length
+
+		# 取得したデータによって頂点を決める
+		if dataLength < 3
+			# 従って、頂点が3以下はチャート生成ができないので、ここで終了する
+			return
 
 		# canvasのコンテキスト
 		ctx = @getContext '2d'
@@ -193,5 +205,4 @@ $.fn.radarChart = (option) ->
 			i -= 1
 			ctx.fillStyle = o.fontColor
 			ctx.strokeStyle = o.gridBGColor
-			# ctx.strokeText i, cX + fontOffsetX, cY - divisions * i + fontOffsetY
-			ctx.fillText i, cX + fontOffsetX, cY - divisions * i + fontOffsetY
+			ctx.fillText "#{i}", cX + fontOffsetX, cY - divisions * i + fontOffsetY
