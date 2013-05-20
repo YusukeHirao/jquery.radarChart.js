@@ -2,7 +2,7 @@
 /*
 * jquery.radarChart.js
 * Author: Yusuke Hirao [http://www.yusukehirao.com]
-* Version: 0.1.3.0
+* Version: 0.2.0.0
 * Github: https://github.com/YusukeHirao/jquery.radarChart.js
 * Licensed under the MIT License
 * Require: jQuery v@1.9.1
@@ -11,22 +11,11 @@
 
 (function() {
   'use strict';
-  var $, Polygon, debug, w;
+  var $, Polygon, RaderChart, w;
 
   w = this;
 
   $ = w.jQuery;
-
-  debug = function(obj) {
-    var k, res, v;
-
-    res = [];
-    for (k in obj) {
-      v = obj[k];
-      res.push("" + k + ": " + v);
-    }
-    return res.join('\n');
-  };
 
   Polygon = (function() {
     Polygon.prototype.ctx = null;
@@ -58,7 +47,7 @@
       this.interiorAngle = Math.PI * 2 / this.sides;
     }
 
-    Polygon.prototype.peint = function() {
+    Polygon.prototype.draw = function() {
       var apex, apexes, ctx, i, _i, _len;
 
       ctx = this.ctx;
@@ -76,11 +65,13 @@
       if (this.fillStyle && this.fillStyle !== 'none') {
         ctx.fillStyle = this.fillStyle;
         ctx.fill();
+        ctx.fillStyle = 'transparent';
       }
       if (this.strokeStyle && this.strokeStyle !== 'none') {
         ctx.strokeStyle = this.strokeStyle;
         ctx.stroke();
       }
+      this.setLineDash([]);
       return this;
     };
 
@@ -106,6 +97,7 @@
           ctx.stroke();
         }
       }
+      this.setLineDash([]);
       return this;
     };
 
@@ -148,110 +140,279 @@
       return this;
     };
 
+    Polygon.prototype.dash = function(strokeStyle, lineWidth, dashStyle) {
+      this.strokeStyle = strokeStyle;
+      if (lineWidth == null) {
+        lineWidth = this.lineWidth;
+      }
+      if (dashStyle == null) {
+        dashStyle = [5, 2];
+      }
+      this.setLineDash(dashStyle);
+      return this.stroke(strokeStyle, lineWidth / 2);
+    };
+
+    Polygon.prototype.setLineDash = function(dashStyle) {
+      var ctx;
+
+      ctx = this.ctx;
+      if (ctx.setLineDash) {
+        ctx.setLineDash(dashStyle);
+      } else if (ctx.mozDash != null) {
+        ctx.mozDash = dashStyle;
+      } else if (ctx.webkitLineDash != null) {
+        ctx.webkitLineDash = dashStyle;
+      }
+      return this;
+    };
+
     return Polygon;
 
   })();
 
+  RaderChart = (function() {
+    var _max;
+
+    RaderChart.prototype.ctx = null;
+
+    RaderChart.prototype.radius = 0;
+
+    RaderChart.prototype.plotLineColor = 'red';
+
+    RaderChart.prototype.plotLineWidth = 3;
+
+    RaderChart.prototype.plotBGColor = 'rgba(255, 0, 0, 0.2)';
+
+    RaderChart.prototype.gridLength = null;
+
+    RaderChart.prototype.gridLineColor = '#ccc';
+
+    RaderChart.prototype.gridLineWidth = 1;
+
+    RaderChart.prototype.subGridLineColor = '#ccc';
+
+    RaderChart.prototype.subGridLineWidth = 1;
+
+    RaderChart.prototype.gridBorderColor = null;
+
+    RaderChart.prototype.gridBorderWidth = 3;
+
+    RaderChart.prototype.gridBGColor = '#fff';
+
+    RaderChart.prototype.divisionGridStep = 1;
+
+    RaderChart.prototype.divisionNumberStep = 1;
+
+    RaderChart.prototype.divisionGridPartition = 1;
+
+    RaderChart.prototype.fontColor = '#000';
+
+    RaderChart.prototype.font = 'bold 13px Arial';
+
+    RaderChart.prototype.offsetX = 0;
+
+    RaderChart.prototype.offsetY = 0;
+
+    RaderChart.prototype.scale = 1;
+
+    RaderChart.prototype.cX = 0;
+
+    RaderChart.prototype.cY = 0;
+
+    RaderChart.prototype.divisions = 0;
+
+    RaderChart.prototype.apexLength = 0;
+
+    RaderChart.prototype.datas = null;
+
+    RaderChart.dataParser = function(dataQuery) {
+      var data, datas;
+
+      dataQuery = dataQuery.replace(/[^0-9,\.\|\-]/g, '');
+      datas = dataQuery.split('|');
+      datas = (function() {
+        var _i, _len, _results;
+
+        _results = [];
+        for (_i = 0, _len = datas.length; _i < _len; _i++) {
+          data = datas[_i];
+          _results.push(data.split(','));
+        }
+        return _results;
+      })();
+      return datas;
+    };
+
+    _max = function(data) {
+      return Math.max.apply(Math, data);
+    };
+
+    function RaderChart(ctx, option) {
+      var scale, _ref;
+
+      this.ctx = ctx;
+      if (!(this instanceof RaderChart)) {
+        return new RaderChart(ctx, option);
+      }
+      $.extend(this, option);
+      if ((_ref = this.gridBorderColor) == null) {
+        this.gridBorderColor = this.gridLineColor;
+      }
+      if (this.scale !== 1) {
+        scale = this.scale;
+        this.radius = this.radius * scale;
+        this.plotLineWidth = this.plotLineWidth * scale;
+        this.gridLineWidth = this.gridLineWidth * scale;
+        this.gridBorderWidth = this.gridBorderWidth * scale;
+        this.font = (this.font || '').replace(/\d+/i, function(d) {
+          return d * scale;
+        });
+        this.offsetX = this.offsetX * scale;
+        this.offsetY = this.offsetY * scale;
+      }
+      this.cX = this.radius + this.offsetX;
+      this.cY = this.radius + this.offsetY;
+      this.datas = [];
+    }
+
+    RaderChart.prototype.add = function(data) {
+      var addData, max, _i, _len, _ref;
+
+      if ($.isArray(data[0])) {
+        addData = data;
+      } else {
+        addData = [data];
+      }
+      this.datas = this.datas.concat(data);
+      _ref = this.datas;
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        data = _ref[_i];
+        max = Math.ceil(_max(data));
+        this.gridLength = Math.max(max, this.gridLength);
+        this.apexLength = Math.max(data.length, this.apexLength);
+      }
+      this.divisions = this.radius / this.gridLength;
+      return this;
+    };
+
+    RaderChart.prototype.draw = function() {
+      var colorLength, data, i, isMultiColor, _i, _len, _ref;
+
+      this.drawGrid();
+      isMultiColor = $.isArray(this.plotLineColor);
+      if (isMultiColor) {
+        colorLength = this.plotLineColor.length;
+      }
+      _ref = this.datas;
+      for (i = _i = 0, _len = _ref.length; _i < _len; i = ++_i) {
+        data = _ref[i];
+        if (isMultiColor) {
+          this.drawData(data, this.plotLineColor[i % colorLength]);
+        } else {
+          this.drawData(data);
+        }
+      }
+      this.drawNumber();
+      return this;
+    };
+
+    RaderChart.prototype.drawData = function(data, plotLineColor) {
+      var apex, i, pentagon, point, value;
+
+      if (plotLineColor == null) {
+        plotLineColor = this.plotLineColor;
+      }
+      this.ctx.beginPath();
+      i = 0;
+      while (i < this.apexLength) {
+        value = parseFloat(data[i]) || 0;
+        point = this.divisions * value;
+        pentagon = new Polygon(null, this.apexLength, point, this.cX, this.cY);
+        apex = pentagon.getApex(i);
+        if (i === 0) {
+          this.ctx.moveTo(apex[0], apex[1]);
+        } else {
+          this.ctx.lineTo(apex[0], apex[1]);
+        }
+        i += 1;
+      }
+      this.ctx.lineWidth = this.plotLineWidth;
+      this.ctx.strokeStyle = plotLineColor;
+      this.ctx.fillStyle = this.plotBGColor;
+      this.ctx.closePath();
+      this.ctx.stroke();
+      this.ctx.fill();
+      return this;
+    };
+
+    RaderChart.prototype.drawGrid = function() {
+      var div, divisions, grid, i;
+
+      divisions = this.divisions / this.divisionGridPartition;
+      i = this.gridLength * this.divisionGridPartition;
+      while (i) {
+        grid = new Polygon(this.ctx, this.apexLength, divisions * i, this.cX, this.cY);
+        if (i === this.gridLength * this.divisionGridPartition) {
+          grid.stroke(this.gridBorderColor, this.gridBorderWidth).fill(this.gridBGColor).draw();
+          grid.stroke(this.gridLineColor, this.gridLineWidth / 2).radiate();
+        } else {
+          div = i / this.divisionGridPartition;
+          if (div === Math.floor(div)) {
+            grid.stroke(this.gridLineColor, this.gridLineWidth).draw();
+          } else {
+            grid.stroke(this.subGridLineColor, this.subGridLineWidth / 3).draw();
+          }
+        }
+        i -= 1;
+      }
+      return this;
+    };
+
+    RaderChart.prototype.drawNumber = function() {
+      var fontOffsetX, fontOffsetY, i;
+
+      i = this.gridLength + 1;
+      fontOffsetX = -11;
+      fontOffsetY = 8;
+      this.ctx.font = this.font;
+      this.ctx.fillStyle = this.fontColor;
+      this.ctx.strokeStyle = this.gridBGColor;
+      while (i) {
+        i -= 1;
+        if (!(i % this.divisionNumberStep)) {
+          this.ctx.fillText("" + i, this.cX + fontOffsetX, this.cY - this.divisions * i + fontOffsetY);
+        }
+      }
+      return this;
+    };
+
+    return RaderChart;
+
+  })();
+
+  $.raderChart = RaderChart;
+
   $.fn.radarChart = function(option) {
-    var o, _ref;
-
-    o = $.extend({
-      radius: null,
-      plotLineColor: 'red',
-      plotLineWidth: 3,
-      plotBGColor: 'rgba(255, 0, 0, 0.2)',
-      gridLength: 5,
-      gridLineColor: '#ccc',
-      gridLineWidth: 1,
-      gridBorderColor: null,
-      gridBorderWidth: 3,
-      gridBGColor: '#fff',
-      gridDivisionStep: 1,
-      fontColor: '#000',
-      font: 'bold 13px Arial',
-      offsetX: 0,
-      offsetY: 0,
-      scale: 1,
-      data: function() {
-        var text;
-
-        text = $(this).data('values') || '';
-        return text.split(',');
+    option = $.extend({
+      data: function(RaderChart) {
+        return RaderChart.dataParser($(this).data('values'));
       }
     }, option);
-    if ((_ref = o.gridBorderColor) == null) {
-      o.gridBorderColor = o.gridLineColor;
-    }
     return this.each(function() {
-      var $this, apex, cX, cY, ctx, data, dataLength, divisions, font, fontOffsetX, fontOffsetY, grid, gridBorderWidth, gridLineWidth, i, offsetX, offsetY, pentagon, plotLineWidth, point, radius, scale, value, _i, _len;
+      var $this, chart, ctx, data, _ref;
 
       if (this.nodeName.toLowerCase() !== 'canvas') {
         return;
       }
       $this = $(this);
-      scale = o.scale;
-      radius = o.radius * scale || $this.width() / 2 * scale;
-      plotLineWidth = o.plotLineWidth * scale;
-      gridLineWidth = o.gridLineWidth * scale;
-      gridBorderWidth = o.gridBorderWidth * scale;
-      font = (o.font || '').replace(/\d+/i, function(d) {
-        return d * scale;
-      });
-      offsetX = o.offsetX * scale;
-      offsetY = o.offsetY * scale;
-      data = o.data.call(this);
-      dataLength = data.length;
-      if (dataLength < 3) {
-        return;
+      if ((_ref = option.radius) == null) {
+        option.radius = Math.min($this.width(), $this.height()) / 2;
       }
+      data = $.isFunction(option.data) ? option.data.call(this, RaderChart) : $.isArray(option.data[0]) ? data = option.data : data = [option.data];
       ctx = this.getContext('2d');
-      cX = radius + offsetX;
-      cY = radius + offsetY;
-      divisions = radius / o.gridLength;
-      i = o.gridLength;
-      ctx.font = font;
-      while (i) {
-        grid = new Polygon(ctx, dataLength, divisions * i, cX, cY);
-        if (i === o.gridLength) {
-          grid.stroke(o.gridBorderColor, gridBorderWidth).fill(o.gridBGColor).peint();
-          grid.stroke(o.gridLineColor, gridLineWidth / 2).radiate();
-        } else {
-          if (!(i % o.gridDivisionStep)) {
-            grid.stroke(o.gridLineColor, gridLineWidth).peint();
-          }
-        }
-        i -= 1;
-      }
-      ctx.beginPath();
-      for (i = _i = 0, _len = data.length; _i < _len; i = ++_i) {
-        value = data[i];
-        value = parseFloat($.trim(value));
-        point = divisions * value;
-        pentagon = new Polygon(null, dataLength, point, cX, cY);
-        apex = pentagon.getApex(i);
-        if (i === 0) {
-          ctx.moveTo(apex[0], apex[1]);
-        } else {
-          ctx.lineTo(apex[0], apex[1]);
-        }
-      }
-      ctx.lineWidth = plotLineWidth;
-      ctx.strokeStyle = o.plotLineColor;
-      ctx.fillStyle = o.plotBGColor;
-      ctx.closePath();
-      ctx.stroke();
-      ctx.fill();
-      i = o.gridLength + 1;
-      fontOffsetX = -11;
-      fontOffsetY = 8;
-      ctx.fillStyle = o.fontColor;
-      ctx.strokeStyle = o.gridBGColor;
-      while (i) {
-        i -= 1;
-        if (!(i % o.gridDivisionStep)) {
-          ctx.fillText("" + i, cX + fontOffsetX, cY - divisions * i + fontOffsetY);
-        }
-      }
+      chart = new RaderChart(ctx, option);
+      chart.add(data);
+      chart.draw();
     });
   };
 
