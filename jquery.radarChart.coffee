@@ -1,7 +1,7 @@
 ###
 * jquery.radarChart.js
 * Author: Yusuke Hirao [http://www.yusukehirao.com]
-* Version: 0.2.0.0
+* Version: 0.2.1.0
 * Github: https://github.com/YusukeHirao/jquery.radarChart.js
 * Licensed under the MIT License
 * Require: jQuery v@1.9.1
@@ -25,7 +25,7 @@ class Polygon
 	x: 0
 	y: 0
 	radius: 100
-	rotate: 270
+	rotate: 0
 	strokeStyle: '#000'
 	lineWidth: 1
 	fillStyle: 'none'
@@ -78,24 +78,40 @@ class Polygon
 		@setLineDash []
 		return @
 
+	# 目盛線の描画
+	# @param {Number} lineLength 目盛線の長さ
+	scale: (lineLength = 5) ->
+		ctx = @ctx
+		apexes = @getApexes()
+		isStroke = off
+		if @strokeStyle and @strokeStyle isnt 'none'
+			isStroke = on
+		ctx.strokeStyle = @strokeStyle if isStroke
+		for apex in apexes
+			ctx.beginPath()
+			[x, y, angle] = apex
+			ctx.moveTo x + (Math.sin(angle) * lineLength), y - (Math.cos(angle) * lineLength)
+			ctx.lineTo x - (Math.sin(angle) * lineLength), y + (Math.cos(angle) * lineLength)
+			ctx.stroke()
+		return @
+
 	# 各頂点を二次元配列で返す
 	# @return {Array}
-	# @return {Polygon}
 	getApexes: ->
 		apexes = []
 		for i in [0..@sides]
 			apexes.push @getApex i
 		return apexes
 
-	# 頂点の座標を返す
+	# 頂点の座標と座標の角度を返す
 	# @param {Number} i (時計回りで)i番目の頂点
 	# @return {Array}
 	getApex: (i) ->
-		rad = @rotate * Math.PI / 180
-		to = rad + @interiorAngle * i
-		x = @x + Math.cos(to) * @radius
-		y = @y + Math.sin(to) * @radius
-		return [x, y]
+		rotate = (@rotate - 90) * Math.PI / 180
+		angle = @interiorAngle * i + rotate
+		x = @x + Math.cos(angle) * @radius
+		y = @y + Math.sin(angle) * @radius
+		return [x, y, angle]
 
 	# 塗りの設定
 	# @param {String} fillStyle カラーコード
@@ -117,7 +133,7 @@ class Polygon
 	# 破線の設定
 	dash: (@strokeStyle, lineWidth = @lineWidth, dashStyle = [5,2]) ->
 		@setLineDash dashStyle
-		return @stroke strokeStyle, lineWidth / 2
+		return @stroke strokeStyle, lineWidth
 
 	# 破線の登録
 	setLineDash: (dashStyle) ->
@@ -141,6 +157,8 @@ class RaderChart
 	gridLineWidth: 1
 	subGridLineColor: '#ccc'
 	subGridLineWidth: 1
+	subGridType: 0
+	subScaleLineLength: 5
 	gridBorderColor: null
 	gridBorderWidth: 3
 	gridBGColor: '#fff'
@@ -177,6 +195,16 @@ class RaderChart
 		$.extend @, option
 		# 特に指定しなければ gridLineColor と同じにする
 		@gridBorderColor ?= @gridLineColor
+		# サブグリッドの種類
+		switch @subGridType
+			when 'line'
+				@subGridType = 0
+			when 'dash'
+				@subGridType = 1
+			when 'scale'
+				@subGridType = 2
+			else
+				@subGridType = 0
 		# 数値情報
 		if @scale isnt 1
 			scale = @scale
@@ -260,13 +288,18 @@ class RaderChart
 				grid.stroke(@gridLineColor, @gridLineWidth / 2).radiate()
 			else
 				div = i / @divisionGridPartition
+				# メイングリッド
 				if div is Math.floor div
 					grid.stroke(@gridLineColor, @gridLineWidth).draw()
+				# サブグリッド
 				else
-					grid.stroke(@subGridLineColor, @subGridLineWidth / 3).draw()
-				# if not (i % @divisionGridStep)
-				# 	# 目盛線の描画
-				# 	grid.stroke(@gridLineColor, @gridLineWidth).draw()
+					switch @subGridType
+						when 0
+							grid.stroke(@subGridLineColor, @subGridLineWidth / 3).draw()
+						when 1
+							grid.dash(@subGridLineColor, @subGridLineWidth).draw()
+						else
+							grid.stroke(@gridLineColor, @gridLineWidth / 2).scale @subScaleLineLength
 			i -= 1
 		return @
 

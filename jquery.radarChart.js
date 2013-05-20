@@ -2,7 +2,7 @@
 /*
 * jquery.radarChart.js
 * Author: Yusuke Hirao [http://www.yusukehirao.com]
-* Version: 0.2.0.0
+* Version: 0.2.1.0
 * Github: https://github.com/YusukeHirao/jquery.radarChart.js
 * Licensed under the MIT License
 * Require: jQuery v@1.9.1
@@ -30,7 +30,7 @@
 
     Polygon.prototype.radius = 100;
 
-    Polygon.prototype.rotate = 270;
+    Polygon.prototype.rotate = 0;
 
     Polygon.prototype.strokeStyle = '#000';
 
@@ -101,6 +101,32 @@
       return this;
     };
 
+    Polygon.prototype.scale = function(lineLength) {
+      var angle, apex, apexes, ctx, isStroke, x, y, _i, _len;
+
+      if (lineLength == null) {
+        lineLength = 5;
+      }
+      ctx = this.ctx;
+      apexes = this.getApexes();
+      isStroke = false;
+      if (this.strokeStyle && this.strokeStyle !== 'none') {
+        isStroke = true;
+      }
+      if (isStroke) {
+        ctx.strokeStyle = this.strokeStyle;
+      }
+      for (_i = 0, _len = apexes.length; _i < _len; _i++) {
+        apex = apexes[_i];
+        ctx.beginPath();
+        x = apex[0], y = apex[1], angle = apex[2];
+        ctx.moveTo(x + (Math.sin(angle) * lineLength), y - (Math.cos(angle) * lineLength));
+        ctx.lineTo(x - (Math.sin(angle) * lineLength), y + (Math.cos(angle) * lineLength));
+        ctx.stroke();
+      }
+      return this;
+    };
+
     Polygon.prototype.getApexes = function() {
       var apexes, i, _i, _ref;
 
@@ -112,13 +138,13 @@
     };
 
     Polygon.prototype.getApex = function(i) {
-      var rad, to, x, y;
+      var angle, rotate, x, y;
 
-      rad = this.rotate * Math.PI / 180;
-      to = rad + this.interiorAngle * i;
-      x = this.x + Math.cos(to) * this.radius;
-      y = this.y + Math.sin(to) * this.radius;
-      return [x, y];
+      rotate = (this.rotate - 90) * Math.PI / 180;
+      angle = this.interiorAngle * i + rotate;
+      x = this.x + Math.cos(angle) * this.radius;
+      y = this.y + Math.sin(angle) * this.radius;
+      return [x, y, angle];
     };
 
     Polygon.prototype.fill = function(fillStyle) {
@@ -149,7 +175,7 @@
         dashStyle = [5, 2];
       }
       this.setLineDash(dashStyle);
-      return this.stroke(strokeStyle, lineWidth / 2);
+      return this.stroke(strokeStyle, lineWidth);
     };
 
     Polygon.prototype.setLineDash = function(dashStyle) {
@@ -192,6 +218,10 @@
     RaderChart.prototype.subGridLineColor = '#ccc';
 
     RaderChart.prototype.subGridLineWidth = 1;
+
+    RaderChart.prototype.subGridType = 0;
+
+    RaderChart.prototype.subScaleLineLength = 5;
 
     RaderChart.prototype.gridBorderColor = null;
 
@@ -257,6 +287,19 @@
       $.extend(this, option);
       if ((_ref = this.gridBorderColor) == null) {
         this.gridBorderColor = this.gridLineColor;
+      }
+      switch (this.subGridType) {
+        case 'line':
+          this.subGridType = 0;
+          break;
+        case 'dash':
+          this.subGridType = 1;
+          break;
+        case 'scale':
+          this.subGridType = 2;
+          break;
+        default:
+          this.subGridType = 0;
       }
       if (this.scale !== 1) {
         scale = this.scale;
@@ -360,7 +403,16 @@
           if (div === Math.floor(div)) {
             grid.stroke(this.gridLineColor, this.gridLineWidth).draw();
           } else {
-            grid.stroke(this.subGridLineColor, this.subGridLineWidth / 3).draw();
+            switch (this.subGridType) {
+              case 0:
+                grid.stroke(this.subGridLineColor, this.subGridLineWidth / 3).draw();
+                break;
+              case 1:
+                grid.dash(this.subGridLineColor, this.subGridLineWidth).draw();
+                break;
+              default:
+                grid.stroke(this.gridLineColor, this.gridLineWidth / 2).scale(this.subScaleLineLength);
+            }
           }
         }
         i -= 1;
