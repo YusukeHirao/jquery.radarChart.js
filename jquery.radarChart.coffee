@@ -1,7 +1,7 @@
 ###
 * jquery.radarChart.js
 * Author: Yusuke Hirao [http://www.yusukehirao.com]
-* Version: 0.2.1.0
+* Version: 0.3.0.0
 * Github: https://github.com/YusukeHirao/jquery.radarChart.js
 * Licensed under the MIT License
 * Require: jQuery v@1.9.1
@@ -317,7 +317,143 @@ class RaderChart
 				@ctx.fillText "#{i}", @cX + fontOffsetX, @cY - @divisions * i + fontOffsetY
 		return @
 
-$.raderChart = RaderChart
+class RaderChartSVG extends RaderChart
+
+	class SVGHelper
+
+		@apexesToPathString = (apexes) ->
+			res = for apex in apexes
+				"#{apex[0]} #{apex[1]}"
+			return "M#{res.join('L')}"
+
+	canvas: null
+	svg: null
+
+	# コンストラクタ
+	constructor: (@canvas, option) ->
+		unless @ instanceof RaderChartSVG
+			return new RaderChartSVG canvas, option
+		super
+
+		@ctx = null
+
+		$canvas = $ canvas
+
+		width = $canvas.attr('width') or $canvas.width()
+		height = $canvas.attr('height') or $canvas.height()
+
+		$canvas.css
+			display: 'inline-block'
+			width: width
+			height: height
+
+		$svg = $ '<div class="__rader_raphael" />'
+		$svg.insertAfter $canvas
+		$svg.css
+			position: 'absolute'
+			top: $canvas.position().top
+			left: $canvas.position().left
+
+		@svg = Raphael $svg[0], width, height
+
+	drawGrid: ->
+		divisions = @divisions / @divisionGridPartition
+		i = @gridLength * @divisionGridPartition
+		while i
+			grid = new Polygon null, @apexLength, divisions * i, @cX, @cY
+			if i is @gridLength * @divisionGridPartition
+				apexes = grid.getApexes()
+				bgPathString = SVGHelper.apexesToPathString(apexes) + 'Z'
+				bgPath = @svg.path bgPathString
+				bgPath.attr
+					stroke: @gridBorderColor
+					'stroke-width': @gridBorderWidth
+					fill: @gridBGColor
+				radiatePathString = ''
+				for apex in apexes
+					radiatePathString += "M#{grid.x} #{grid.y}L#{apex[0]} #{apex[1]}Z"
+				radiate = @svg.path radiatePathString
+				radiate.attr
+					stroke: @gridLineColor
+					'stroke-width': @gridLineWidth / 2
+			else
+				div = i / @divisionGridPartition
+				# メイングリッド
+				if div is Math.floor div
+					apexes = grid.getApexes()
+					gridPathString = SVGHelper.apexesToPathString(apexes) + 'Z'
+					gridPath = @svg.path gridPathString
+					gridPath.attr
+						stroke: @gridLineColor
+						'stroke-width': @gridLineWidth
+				# サブグリッド
+				else
+					switch @subGridType
+						when 0
+							apexes = grid.getApexes()
+							gridPathString = SVGHelper.apexesToPathString(apexes) + 'Z'
+							gridPath = @svg.path gridPathString
+							gridPath.attr
+								stroke: @subGridLineColor
+								'stroke-width': @subGridLineWidth / 3
+						when 1 # TODO:
+							# grid.dash(@subGridLineColor, @subGridLineWidth).draw()
+						else
+							apexes = grid.getApexes()
+							lineLength = @subScaleLineLength
+							scalePathString = ''
+							for apex in apexes
+								[x, y, angle] = apex
+								scalePathString += 'M' + (x + (Math.sin(angle) * lineLength)) + ' ' +  (y - (Math.cos(angle) * lineLength))
+								scalePathString += 'L' + (x - (Math.sin(angle) * lineLength)) + ' ' +  (y + (Math.cos(angle) * lineLength))
+							scale = @svg.path scalePathString
+							scale.attr
+								stroke: @gridLineColor
+								'stroke-width': @gridLineWidth / 2
+			i -= 1
+		return @
+
+
+	# データの描画
+	drawData: (data, plotLineColor = @plotLineColor) ->
+		i = 0
+		res = ''
+		while i < @apexLength
+			value = parseFloat(data[i]) or 0
+			point = @divisions * value
+			pentagon = new Polygon null, @apexLength, point, @cX, @cY
+			apex = pentagon.getApex i
+			if i is 0
+				res += "M#{apex[0]} #{apex[1]}"
+			else
+				res += "L#{apex[0]} #{apex[1]}"
+			i += 1
+		res += 'Z'
+		@svg.path(res).attr
+			stroke: plotLineColor
+			fill: @plotBGColor
+			'stroke-width': @plotLineWidth
+		return @
+
+
+	# 目盛数値の描画
+	drawNumber: ->
+		i = @gridLength + 1
+		fontOffsetX = -11
+		fontOffsetY = 8
+		while i
+			i -= 1
+			if not (i % @divisionNumberStep)
+				x = @cX + fontOffsetX
+				y = @cY - @divisions * i + fontOffsetY
+				text = "#{i}"
+				font = @svg.text x, y, text
+				font.attr
+					font: @font
+					fill: @fontColor
+					# stroke: @gridBGColor # TODO: 境界線が塗りを食いつぶす
+		return @
+
 
 # プラグイン
 $.fn.radarChart = (option) ->
@@ -345,11 +481,18 @@ $.fn.radarChart = (option) ->
 			else
 				data = [option.data]
 
-		# canvasのコンテキスト
-		ctx = @getContext '2d'
+		if @getContext # Canvas Support
 
-		# レーダーチャートの生成
-		chart = new RaderChart ctx, option
+			# canvasのコンテキスト
+			ctx = @getContext '2d'
+
+			# レーダーチャートの生成
+			chart = new RaderChart ctx, option
+
+		else
+
+			chart = new RaderChartSVG @, option
+
 		chart.add data
 		chart.draw()
 

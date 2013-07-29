@@ -2,7 +2,7 @@
 /*
 * jquery.radarChart.js
 * Author: Yusuke Hirao [http://www.yusukehirao.com]
-* Version: 0.2.1.0
+* Version: 0.3.0.0
 * Github: https://github.com/YusukeHirao/jquery.radarChart.js
 * Licensed under the MIT License
 * Require: jQuery v@1.9.1
@@ -11,7 +11,9 @@
 
 (function() {
   'use strict';
-  var $, Polygon, RaderChart, w;
+  var $, Polygon, RaderChart, RaderChartSVG, w,
+    __hasProp = {}.hasOwnProperty,
+    __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
 
   w = this;
 
@@ -442,7 +444,191 @@
 
   })();
 
-  $.raderChart = RaderChart;
+  RaderChartSVG = (function(_super) {
+    var SVGHelper;
+
+    __extends(RaderChartSVG, _super);
+
+    SVGHelper = (function() {
+      function SVGHelper() {}
+
+      SVGHelper.apexesToPathString = function(apexes) {
+        var apex, res;
+
+        res = (function() {
+          var _i, _len, _results;
+
+          _results = [];
+          for (_i = 0, _len = apexes.length; _i < _len; _i++) {
+            apex = apexes[_i];
+            _results.push("" + apex[0] + " " + apex[1]);
+          }
+          return _results;
+        })();
+        return "M" + (res.join('L'));
+      };
+
+      return SVGHelper;
+
+    })();
+
+    RaderChartSVG.prototype.canvas = null;
+
+    RaderChartSVG.prototype.svg = null;
+
+    function RaderChartSVG(canvas, option) {
+      var $canvas, $svg, height, width;
+
+      this.canvas = canvas;
+      if (!(this instanceof RaderChartSVG)) {
+        return new RaderChartSVG(canvas, option);
+      }
+      RaderChartSVG.__super__.constructor.apply(this, arguments);
+      this.ctx = null;
+      $canvas = $(canvas);
+      width = $canvas.attr('width') || $canvas.width();
+      height = $canvas.attr('height') || $canvas.height();
+      $canvas.css({
+        display: 'inline-block',
+        width: width,
+        height: height
+      });
+      $svg = $('<div class="__rader_raphael" />');
+      $svg.insertAfter($canvas);
+      $svg.css({
+        position: 'absolute',
+        top: $canvas.position().top,
+        left: $canvas.position().left
+      });
+      this.svg = Raphael($svg[0], width, height);
+    }
+
+    RaderChartSVG.prototype.drawGrid = function() {
+      var angle, apex, apexes, bgPath, bgPathString, div, divisions, grid, gridPath, gridPathString, i, lineLength, radiate, radiatePathString, scale, scalePathString, x, y, _i, _j, _len, _len1;
+
+      divisions = this.divisions / this.divisionGridPartition;
+      i = this.gridLength * this.divisionGridPartition;
+      while (i) {
+        grid = new Polygon(null, this.apexLength, divisions * i, this.cX, this.cY);
+        if (i === this.gridLength * this.divisionGridPartition) {
+          apexes = grid.getApexes();
+          bgPathString = SVGHelper.apexesToPathString(apexes) + 'Z';
+          bgPath = this.svg.path(bgPathString);
+          bgPath.attr({
+            stroke: this.gridBorderColor,
+            'stroke-width': this.gridBorderWidth,
+            fill: this.gridBGColor
+          });
+          radiatePathString = '';
+          for (_i = 0, _len = apexes.length; _i < _len; _i++) {
+            apex = apexes[_i];
+            radiatePathString += "M" + grid.x + " " + grid.y + "L" + apex[0] + " " + apex[1] + "Z";
+          }
+          radiate = this.svg.path(radiatePathString);
+          radiate.attr({
+            stroke: this.gridLineColor,
+            'stroke-width': this.gridLineWidth / 2
+          });
+        } else {
+          div = i / this.divisionGridPartition;
+          if (div === Math.floor(div)) {
+            apexes = grid.getApexes();
+            gridPathString = SVGHelper.apexesToPathString(apexes) + 'Z';
+            gridPath = this.svg.path(gridPathString);
+            gridPath.attr({
+              stroke: this.gridLineColor,
+              'stroke-width': this.gridLineWidth
+            });
+          } else {
+            switch (this.subGridType) {
+              case 0:
+                apexes = grid.getApexes();
+                gridPathString = SVGHelper.apexesToPathString(apexes) + 'Z';
+                gridPath = this.svg.path(gridPathString);
+                gridPath.attr({
+                  stroke: this.subGridLineColor,
+                  'stroke-width': this.subGridLineWidth / 3
+                });
+                break;
+              case 1:
+                break;
+              default:
+                apexes = grid.getApexes();
+                lineLength = this.subScaleLineLength;
+                scalePathString = '';
+                for (_j = 0, _len1 = apexes.length; _j < _len1; _j++) {
+                  apex = apexes[_j];
+                  x = apex[0], y = apex[1], angle = apex[2];
+                  scalePathString += 'M' + (x + (Math.sin(angle) * lineLength)) + ' ' + (y - (Math.cos(angle) * lineLength));
+                  scalePathString += 'L' + (x - (Math.sin(angle) * lineLength)) + ' ' + (y + (Math.cos(angle) * lineLength));
+                }
+                scale = this.svg.path(scalePathString);
+                scale.attr({
+                  stroke: this.gridLineColor,
+                  'stroke-width': this.gridLineWidth / 2
+                });
+            }
+          }
+        }
+        i -= 1;
+      }
+      return this;
+    };
+
+    RaderChartSVG.prototype.drawData = function(data, plotLineColor) {
+      var apex, i, pentagon, point, res, value;
+
+      if (plotLineColor == null) {
+        plotLineColor = this.plotLineColor;
+      }
+      i = 0;
+      res = '';
+      while (i < this.apexLength) {
+        value = parseFloat(data[i]) || 0;
+        point = this.divisions * value;
+        pentagon = new Polygon(null, this.apexLength, point, this.cX, this.cY);
+        apex = pentagon.getApex(i);
+        if (i === 0) {
+          res += "M" + apex[0] + " " + apex[1];
+        } else {
+          res += "L" + apex[0] + " " + apex[1];
+        }
+        i += 1;
+      }
+      res += 'Z';
+      this.svg.path(res).attr({
+        stroke: plotLineColor,
+        fill: this.plotBGColor,
+        'stroke-width': this.plotLineWidth
+      });
+      return this;
+    };
+
+    RaderChartSVG.prototype.drawNumber = function() {
+      var font, fontOffsetX, fontOffsetY, i, text, x, y;
+
+      i = this.gridLength + 1;
+      fontOffsetX = -11;
+      fontOffsetY = 8;
+      while (i) {
+        i -= 1;
+        if (!(i % this.divisionNumberStep)) {
+          x = this.cX + fontOffsetX;
+          y = this.cY - this.divisions * i + fontOffsetY;
+          text = "" + i;
+          font = this.svg.text(x, y, text);
+          font.attr({
+            font: this.font,
+            fill: this.fontColor
+          });
+        }
+      }
+      return this;
+    };
+
+    return RaderChartSVG;
+
+  }).call(this, RaderChart);
 
   $.fn.radarChart = function(option) {
     option = $.extend({
@@ -461,8 +647,12 @@
         option.radius = Math.min($this.width(), $this.height()) / 2;
       }
       data = $.isFunction(option.data) ? option.data.call(this, RaderChart) : $.isArray(option.data[0]) ? data = option.data : data = [option.data];
-      ctx = this.getContext('2d');
-      chart = new RaderChart(ctx, option);
+      if (this.getContext) {
+        ctx = this.getContext('2d');
+        chart = new RaderChart(ctx, option);
+      } else {
+        chart = new RaderChartSVG(this, option);
+      }
       chart.add(data);
       chart.draw();
     });
