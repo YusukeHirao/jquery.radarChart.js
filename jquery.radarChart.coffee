@@ -1,7 +1,7 @@
 ###
 * jquery.radarChart.js
-* Author: Yusuke Hirao [http://www.yusukehirao.com]
-* Version: 0.3.0.0
+* Author: YusukeHirao
+* Version: 1.0.0-beta
 * Github: https://github.com/YusukeHirao/jquery.radarChart.js
 * Licensed under the MIT License
 * Require: jQuery v@1.9.1
@@ -62,16 +62,17 @@ class Polygon
 		return @
 
 	# 放射状の線を描画
-	radiate: ->
+	radiate: (donutRadius = 0) ->
 		ctx = @ctx
+		donutPolygon = new Polygon null, @sides, donutRadius, @x, @y
 		apexes = @getApexes()
 		isStroke = off
 		if @strokeStyle and @strokeStyle isnt 'none'
 			isStroke = on
 		ctx.strokeStyle = @strokeStyle if isStroke
-		for apex in apexes
+		for apex, i in apexes
 			ctx.beginPath()
-			ctx.moveTo @x, @y
+			ctx.moveTo donutPolygon.getApex(i)[0], donutPolygon.getApex(i)[1]
 			ctx.lineTo apex[0], apex[1]
 			ctx.closePath()
 			ctx.stroke() if isStroke
@@ -146,15 +147,18 @@ class Polygon
 			ctx.webkitLineDash = dashStyle
 		return @
 
+	clone: ->
+		return new Polygon @ctx, @sides, @radius, @x, @y
+
 class RaderChart
-	ctx: null
-	radius: 0
-	plotLineColor: 'red'
-	plotLineWidth: 3
-	plotBGColor: 'rgba(255, 0, 0, 0.2)'
-	gridLength: null
-	gridLineColor: '#ccc'
-	gridLineWidth: 1
+	ctx: null # Canvas Context
+	radius: 0 # 半径
+	plotLineColor: 'red' # プロットの線の色
+	plotLineWidth: 3 # プロットの線の太さ
+	plotBGColor: 'rgba(255, 0, 0, 0.2)' # プロットの塗りの色
+	gridLength: null # グリッドの目盛り（デフォルトでは与えられた値の最大値）
+	gridLineColor: '#ccc' # グリッドの線の色
+	gridLineWidth: 1 # グリッドの線の太さ
 	subGridLineColor: '#ccc'
 	subGridLineWidth: 1
 	subGridType: 0
@@ -169,12 +173,16 @@ class RaderChart
 	font: 'bold 13px Arial'
 	offsetX: 0
 	offsetY: 0
+	fontOffsetX: 0
+	fontOffsetY: 0
 	scale: 1
 	cX: 0
 	cY: 0
+	donutRadius: 0
 	divisions: 0
 	apexLength: 0
 	datas: null
+	labels: null # {string[]}
 	backgroundImage: null
 	backgroundPositionX: null
 	backgroundPositionY: null
@@ -268,7 +276,7 @@ class RaderChart
 			else
 				@drawData data
 		# 目盛数値の描画
-		@drawNumber()
+		@drawLabels()
 		return @
 
 	# データの描画
@@ -278,8 +286,11 @@ class RaderChart
 		while i < @apexLength
 			value = parseFloat(data[i]) or 0
 			point = @divisions * value
-			pentagon = new Polygon null, @apexLength, point, @cX, @cY
-			apex = pentagon.getApex i
+			# ドーナツポジションの計算
+			if @donutRadius
+				point = (@radius - @donutRadius) * (point / @radius) + @donutRadius
+			polygon = new Polygon null, @apexLength, point, @cX, @cY
+			apex = polygon.getApex i
 			if i is 0
 				@ctx.moveTo apex[0], apex[1]
 			else
@@ -311,13 +322,16 @@ class RaderChart
 	drawGrid: ->
 		divisions = @divisions / @divisionGridPartition
 		i = @gridLength * @divisionGridPartition
-		while i
-			grid = new Polygon @ctx, @apexLength, divisions * i, @cX, @cY
+		while i >= 0
+			point = divisions * i
+			if @donutRadius
+				point = (@radius - @donutRadius) * (point / @radius) + @donutRadius
+			grid = new Polygon @ctx, @apexLength, point, @cX, @cY
 			if i is @gridLength * @divisionGridPartition
 				# 外枠の線と背景色の描画
 				grid.stroke(@gridBorderColor, @gridBorderWidth).draw()
 				# 放射状線の描画
-				grid.stroke(@gridLineColor, @gridLineWidth / 2).radiate()
+				grid.stroke(@gridLineColor, @gridLineWidth / 2).radiate @donutRadius
 			else
 				div = i / @divisionGridPartition
 				# メイングリッド
@@ -336,7 +350,7 @@ class RaderChart
 		return @
 
 	# 目盛数値の描画
-	drawNumber: ->
+	drawLabels: ->
 		i = @gridLength + 1
 		fontOffsetX = -11
 		fontOffsetY = 8
@@ -345,8 +359,20 @@ class RaderChart
 		@ctx.strokeStyle = @gridBGColor
 		while i
 			i -= 1
+			text = if @labels
+				@labels[i] || i
+			point = @divisions * i
+			# ドーナツポジションの計算
+			if @donutRadius
+				point = (@radius - @donutRadius) * (point / @radius) + @donutRadius
+			else
+				"#{i}"
 			if not (i % @divisionNumberStep)
-				@ctx.fillText "#{i}", @cX + fontOffsetX, @cY - @divisions * i + fontOffsetY
+				@ctx.fillText(
+					"#{text}" # テキスト
+					@cX + fontOffsetX + @fontOffsetX # X座標
+					@cY - point + fontOffsetY + @fontOffsetY # Y座標
+				)
 		return @
 
 class RaderChartSVG extends RaderChart
@@ -453,8 +479,8 @@ class RaderChartSVG extends RaderChart
 		while i < @apexLength
 			value = parseFloat(data[i]) or 0
 			point = @divisions * value
-			pentagon = new Polygon null, @apexLength, point, @cX, @cY
-			apex = pentagon.getApex i
+			polygon = new Polygon null, @apexLength, point, @cX, @cY
+			apex = polygon.getApex i
 			if i is 0
 				res += "M#{apex[0]} #{apex[1]}"
 			else
@@ -469,7 +495,7 @@ class RaderChartSVG extends RaderChart
 
 
 	# 目盛数値の描画
-	drawNumber: ->
+	drawLabels: ->
 		i = @gridLength + 1
 		fontOffsetX = -11
 		fontOffsetY = 8
