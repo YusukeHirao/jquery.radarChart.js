@@ -175,6 +175,11 @@ class RaderChart
 	divisions: 0
 	apexLength: 0
 	datas: null
+	backgroundImage: null
+	backgroundPositionX: null
+	backgroundPositionY: null
+	backgroundSizeWidth: null
+	backgroundSizeHeight: null # null is auto
 
 	# データの整形
 	@dataParser = (dataQuery) ->
@@ -239,6 +244,19 @@ class RaderChart
 
 	# チャートの描画
 	draw: ->
+		if @backgroundImage
+			img = new Image()
+			img.onload = $.proxy @drawAfterImageLoaded, @, img
+			img.src = @backgroundImage
+		else
+			@drawAfterImageLoaded()
+		return @
+
+	# チャートの描画（画像の読み込みが完了してから）
+	# @param {HTMLImgElement} loadedImage
+	drawAfterImageLoaded: (loadedImage) ->
+		# 背景の描画
+		@drawBackground loadedImage
 		# グリッドの描画
 		@drawGrid()
 		# データの描画
@@ -275,6 +293,20 @@ class RaderChart
 		@ctx.fill()
 		return @
 
+	# 背景の描画
+	drawBackground: (loadedImage) ->
+		# 背景色
+		area = new Polygon @ctx, @apexLength, @radius, @cX, @cY
+		area.stroke().fill(@gridBGColor).draw()
+		dx = @backgroundPositionX or 0
+		dy = @backgroundPositionY or 0
+		dw = @backgroundSizeWidth or loadedImage.width
+		# @backgroundSizeHeight が null だと 縦横比キープ
+		dh = @backgroundSizeHeight or @backgroundSizeWidth * (loadedImage.height / loadedImage.width)
+		if loadedImage
+			@ctx.drawImage loadedImage, 0, 0, loadedImage.width, loadedImage.height, dx, dy, dw, dh
+		return @
+
 	# グリッドの描画
 	drawGrid: ->
 		divisions = @divisions / @divisionGridPartition
@@ -283,7 +315,7 @@ class RaderChart
 			grid = new Polygon @ctx, @apexLength, divisions * i, @cX, @cY
 			if i is @gridLength * @divisionGridPartition
 				# 外枠の線と背景色の描画
-				grid.stroke(@gridBorderColor, @gridBorderWidth).fill(@gridBGColor).draw()
+				grid.stroke(@gridBorderColor, @gridBorderWidth).draw()
 				# 放射状線の描画
 				grid.stroke(@gridLineColor, @gridLineWidth / 2).radiate()
 			else
